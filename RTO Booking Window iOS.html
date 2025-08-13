@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>RTO Date Checker - Four Month Calendar</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 1100px;
+      margin: auto;
+      background: #f9f9f9;
+      padding: 1.5rem;
+      border-radius: 10px;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      font-size: 1rem;
+      line-height: 1.4;
+      margin: 0.2rem 0 1rem 0;
+      text-align: center;
+    }
+    .range {
+      font-weight: bold;
+      color: #555;
+    }
+    .calendar-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 1rem;
+      padding-bottom: 0.5rem;
+    }
+    .calendar {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+      padding: 1rem;
+      width: 260px;
+      min-width: 260px;
+      box-sizing: border-box;
+      height: 320px;
+      flex-shrink: 0;
+    }
+    .calendar h2 {
+      text-align: center;
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      font-size: 1.2rem;
+      color: #444;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: center;
+      table-layout: fixed;
+    }
+    th {
+      background: #eee;
+      padding: 0.4rem 0;
+      font-weight: normal;
+      color: #666;
+    }
+    td {
+      padding: 0.6rem 0;
+      border: 1px solid #ddd;
+      cursor: default;
+      user-select: none;
+      width: 14.28%;
+      vertical-align: middle;
+    }
+    td.outside-month {
+      color: #bbb;
+      background: #f4f4f4;
+    }
+    td.highlight {
+      background-color: #d4edda;
+      color: #155724;
+      font-weight: bold;
+      border: none;
+      box-shadow: inset 0 0 0 1px #28a745;
+      border-radius: 4px;
+    }
+    td.today {
+      border: 2px solid #007bff;
+      font-weight: bold;
+    }
+
+    /* Responsive: stack calendars on smaller screens */
+    @media (max-width: 1080px) {
+      body {
+        max-width: 100%;
+        padding: 1rem;
+        border-radius: 0;
+      }
+      .calendar-container {
+        justify-content: center;
+      }
+      .calendar {
+        width: 90vw;
+        max-width: 320px;
+        height: auto;
+      }
+    }
+    @media (max-width: 400px) {
+      td {
+        padding: 0.4rem 0;
+        font-size: 0.85rem;
+      }
+      .calendar h2 {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>RTO Booking Window</h1>
+  <p><strong>Today:</strong> <span id="today"></span></p>
+  <p><span class="range">Earliest RTO date (4 weeks from now):</span> <span id="earliest"></span></p>
+  <p><span class="range">Latest RTO date (10 weeks from now):</span> <span id="latest"></span></p>
+
+  <div class="calendar-container" id="calendarContainer"></div>
+
+  <script>
+    function formatDate(date) {
+      return date.toLocaleDateString(undefined, {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+
+    function getThisSaturday(date) {
+      const saturday = new Date(date);
+      const day = date.getDay();
+      const diff = (6 - day + 7) % 7;
+      saturday.setDate(date.getDate() + diff);
+      saturday.setHours(0,0,0,0);
+      return saturday;
+    }
+
+    function addWeeks(date, weeks) {
+      const newDate = new Date(date);
+      newDate.setDate(newDate.getDate() + weeks * 7);
+      newDate.setHours(0,0,0,0);
+      return newDate;
+    }
+
+    function daysInMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    }
+
+    function isSameDay(date1, date2) {
+      return date1.getFullYear() === date2.getFullYear() &&
+             date1.getMonth() === date2.getMonth() &&
+             date1.getDate() === date2.getDate();
+    }
+
+    function isBetween(date, start, end) {
+      return date >= start && date <= end;
+    }
+
+    function buildCalendar(year, month, earliest, latest, today) {
+      const firstDay = new Date(year, month, 1);
+      const firstWeekday = firstDay.getDay();
+
+      let html = `<div class="calendar">
+        <h2>${firstDay.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+      let day = 1;
+      let done = false;
+
+      for (let week = 0; week < 6 && !done; week++) {
+        html += '<tr>';
+        for (let weekday = 0; weekday < 7; weekday++) {
+          if (week === 0 && weekday < firstWeekday) {
+            html += '<td class="outside-month"></td>';
+            continue;
+          }
+          if (day > daysInMonth(firstDay)) {
+            done = true;
+            html += '<td class="outside-month"></td>';
+            continue;
+          }
+
+          const cellDate = new Date(year, month, day);
+          let cellClasses = '';
+
+          if (isBetween(cellDate, earliest, latest)) {
+            cellClasses += ' highlight';
+          }
+          if (isSameDay(cellDate, today)) {
+            cellClasses += ' today';
+          }
+
+          html += `<td class="${cellClasses.trim()}">${day}</td>`;
+          day++;
+        }
+        html += '</tr>';
+      }
+
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    (function(){
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      document.getElementById("today").textContent = formatDate(today);
+
+      const thisSaturday = getThisSaturday(today);
+      const earliest = addWeeks(thisSaturday, 4);
+
+      const tenthSaturday = addWeeks(thisSaturday, 10);
+      tenthSaturday.setHours(0,0,0,0);
+
+      const latest = new Date(tenthSaturday);
+      latest.setDate(tenthSaturday.getDate() - 1);
+      latest.setHours(0,0,0,0);
+
+      document.getElementById("earliest").textContent = formatDate(earliest);
+      document.getElementById("latest").textContent = formatDate(latest);
+
+      const calendarContainer = document.getElementById("calendarContainer");
+
+      let calendarsHTML = "";
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+
+      for (let i = 0; i < 4; i++) {
+        let month = currentMonth + i;
+        let year = currentYear;
+        if (month > 11) {
+          month = month % 12;
+          year += 1;
+        }
+        calendarsHTML += buildCalendar(year, month, earliest, latest, today);
+      }
+
+      calendarContainer.innerHTML = calendarsHTML;
+    })();
+  </script>
+</body>
+</html>
